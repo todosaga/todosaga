@@ -110,6 +110,22 @@ todosaga/
 ├── pyproject.toml     # Python 프로젝트 설정
 └── requirements.txt   # Python 의존성 (대체 옵션)
 ```
+## 앱 구조 및 구현 우선순위
+
+| 앱 이름         | 관리할 주요 모델 및 기능                                      | 구현 우선순위 |
+|----------------|-------------------------------------------------------------|---------------|
+| accounts       | Django User 모델 확장 (UserProfile 등 사용자 기본 정보 관리)    | 1차           |
+| todos          | Todo, Category 모델 (할 일 및 카테고리 관리)                   | 1차           |
+| stats          | Ability, UserAbilityStat, UserCategoryStat 모델 (능력치/경험치 통계 관리) | 1차           |
+| items          | Equipment, UserEquipment 모델 (무기/방어구 등 장비 관리)       | 1차           |
+| monsters       | Monster, UserDailyMonster 모델 (몬스터 정보 및 일일 전투 관리)  | 1차           |
+| titles         | Title 모델 및 칭호(티어) 시스템 관리                          | 나중에        |
+| quests         | Quest, UserQuest 모델 (퀘스트 및 퀘스트 진행 관리)             | 나중에        |
+| achievements   | Achievement, UserAchievement 모델 (업적 달성 관리)            | 나중에        |
+| focus          | FocusSession 모델 (타이머 집중 세션 로그 관리)                | 1차           |
+| notifications  | Notification, UserLog 모델 (시스템 알림 및 이벤트 로그 관리)   | 나중에        |
+| core           | 공통 서비스, 유틸리티, 범용 로직                              | 1차           |
+| todosaga       | Django 프로젝트 설정                                         | 1차           |
 
 ## 의존성 관리
 
