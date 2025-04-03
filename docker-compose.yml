@@ -1,6 +1,16 @@
-version: '3.8'
 
 services:
+  redis:
+    image: redis:7
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   web:
     build:
       context: .
@@ -17,34 +27,43 @@ services:
     env_file:
       - .env
     depends_on:
-      - db
+      redis:
+        condition: service_healthy  # ✅ redis가 준비될 때까지 대기
+      db:
+        condition: service_healthy
+    restart: always
+
+  rq-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -c "python manage.py rqworker default"
+    depends_on:
+      redis:
+        condition: service_healthy  # ✅ redis가 정상적으로 실행된 후 시작
+      web:
+        condition: service_started  # ✅ web 서비스가 실행된 후 시작
+    env_file:
+      - .env
     restart: always
 
   db:
     image: postgres:15
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_DB=${DB_NAME}
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      POSTGRES_DB: todosaga_db
+      POSTGRES_HOST_AUTH_METHOD: trust
+      
     ports:
       - "5432:5432"
-    restart: always
-
-  nginx:
-    image: nginx:1.25
-    volumes:
-      - static_volume:/app/staticfiles
-      - media_volume:/app/media
-      - ./nginx:/etc/nginx/conf.d
-    ports:
-      - "80:80"
-    depends_on:
-      - web
-    restart: always
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "example_user", "-d", "example_db"]
+      interval: 30s
+      retries: 3
+      start_period: 10s
+      timeout: 10s
 
 volumes:
-  postgres_data:
   static_volume:
-  media_volume: 
+    driver: local
+  media_volume:
+    driver: local

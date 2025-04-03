@@ -16,4 +16,6 @@ dependencies = [
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
     "whitenoise>=6.6.0",
+    celery = "^5.2.3",
+    rq = "^1.14.0",
 ]

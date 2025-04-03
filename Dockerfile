@@ -11,8 +11,8 @@ ENV PYTHONUNBUFFERED 1
 WORKDIR /app
 
 # Install dependencies
-COPY pyproject.toml .
-COPY uv.lock .
+COPY pyproject.toml . 
+COPY uv.lock . 
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
@@ -25,14 +25,14 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy project
-COPY ./todosaga /app/todosaga
+COPY ./backend /app/backend
 
 # Set work directory
-WORKDIR /app/todosaga
+WORKDIR /app/backend
 
+# Install FastAPI & Worker dependencies
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir "uvicorn[standard]" "gunicorn" "fastapi" "redis" "rq" "langchain" "openai"
 
-# Create necessary directories
-RUN mkdir -p /app/staticfiles /app/media
-
-# Set permissions
-RUN chmod -R 755 /app/staticfiles /app/media 
+# CMD 실행
+CMD ["uvicorn", "todosaga.asgi:app", "--host", "0.0.0.0", "--port", "8000"]
