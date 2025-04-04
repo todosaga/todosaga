@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+from matplotlib import rc
 from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain.output_parsers import PydanticOutputParser
@@ -6,6 +8,8 @@ import os
 from dotenv import load_dotenv
 import json
 from typing import Dict
+rc('font', family='AppleGothic')
+plt.rcParams['axes.unicode_minus'] = False 
 
 # Load environment variables
 load_dotenv()
@@ -21,9 +25,8 @@ CATEGORIES = [
     "재무 및 소비관리", "개발 작업", "창작활동", "기타"
 ]
 
-# Pydantic 모델 정의
+# Pydantic model definition for category weights
 class CategoryWeights(BaseModel):
-    """카테고리별 가중치를 저장하는 모델"""
     weights: Dict[str, float] = Field(
         description="각 카테고리별 가중치 (0.0 ~ 1.0)",
         example={
@@ -33,7 +36,7 @@ class CategoryWeights(BaseModel):
         }
     )
 
-# TODO 리스트
+# TODO list
 todo_list = [
     "아침 루틴 정립하기 (기상 시간, 스트레칭, 물 마시기 등)",
     "주간 회의 안건 정리 및 공유",
@@ -48,16 +51,15 @@ todo_list = [
 ]
 
 def normalize_weights(weights: Dict[str, float]) -> Dict[str, float]:
-    """가중치를 정규화하여 총합이 1이 되도록 합니다."""
     total = sum(weights.values())
     if total == 0:
         return {k: 1.0/len(weights) for k in weights}
     return {k: v/total for k, v in weights.items()}
 
-# Output Parser 설정
+# Set up the output parser
 parser = PydanticOutputParser(pydantic_object=CategoryWeights)
 
-# 프롬프트 템플릿
+# Define the prompt template
 prompt = PromptTemplate(
     input_variables=["todo", "categories", "format_instructions"],
     template="""다음은 사용자의 TODO 입니다:
@@ -72,11 +74,10 @@ prompt = PromptTemplate(
 가중치는 해당 카테고리와의 관련성을 나타냅니다."""
 )
 
-# LLM 설정 및 실행
+# Set up the LLM and chain
 llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.7)
 chain = prompt | llm | parser
 
-# 각 TODO 항목 분류
 for todo in todo_list:
     response = chain.invoke({
         "todo": todo,
@@ -84,13 +85,20 @@ for todo in todo_list:
         "format_instructions": parser.get_format_instructions()
     })
     
-    # 가중치 정규화
     normalized_weights = normalize_weights(response.weights)
     
-    # 결과 출력
-    print(f"\n=== {todo} ===")
-    print("원본 가중치:")
-    print(json.dumps(response.weights, indent=2, ensure_ascii=False))
-    print("\n정규화된 가중치:")
+    # Print the final normalized weights in a clean view
+    print(todo)
     print(json.dumps(normalized_weights, indent=2, ensure_ascii=False))
-    print(f"총합: {sum(normalized_weights.values()):.2f}") 
+    
+    # Draw a bar chart for the final values
+    categories = list(normalized_weights.keys())
+    values = list(normalized_weights.values())
+    
+    plt.figure(figsize=(10, 5))
+    plt.bar(categories, values)
+    plt.title(todo)
+    plt.ylabel("Normalized Weight")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
