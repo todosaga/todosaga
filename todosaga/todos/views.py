@@ -1,22 +1,27 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, permissions
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 from .models import Todo
+from .serializers import (
+    TodoCreateSerializer,
+    TodoSerializer,
+    StartTimerResponseSerializer,
+    TodoCompleteResponseSerializer,
+    TodoSuggestionSerializer,
+)
+from .services.todo_services import get_todo_recommendations
 
 class TodoCreateView(APIView):
-    """
-    POST /todos
-    Creates a new Todo.
-    Expected JSON:
-    {
-        "title": "Study Python",
-        "categories": ["study", "programming"],
-        "type": "check",       // or "timer"
-        "duration_seconds": 1800  // required if type is "timer"
-    }
-    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=TodoCreateSerializer,
+        responses={201: TodoSerializer, 400: "Bad Request"}
+    )
     def post(self, request):
         data = request.data
         title = data.get("title")
@@ -49,27 +54,38 @@ class TodoCreateView(APIView):
         return Response(result, status=status.HTTP_201_CREATED)
 
 class TodoListView(APIView):
-    """
-    GET /todos
-    Retrieves a list of Todos. Optionally filter by:
-      - completed (query parameter, boolean)
-      - categories (query parameter, array of strings)
-    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter(
+                'completed',
+                openapi.IN_QUERY,
+                description="Filter by completion status (true/false)",
+                type=openapi.TYPE_BOOLEAN
+            ),
+            openapi.Parameter(
+                'categories',
+                openapi.IN_QUERY,
+                description="Filter by categories (can be provided multiple times)",
+                type=openapi.TYPE_ARRAY,
+                items=openapi.Items(type=openapi.TYPE_STRING)
+            )
+        ],
+        responses={200: TodoSerializer(many=True)}
+    )
     def get(self, request):
         completed_param = request.query_params.get("completed")
         categories = request.query_params.getlist("categories")
         todos = Todo.objects.all()
         
         if completed_param is not None:
-            # Convert string to boolean
             if completed_param.lower() == "true":
                 todos = todos.filter(completed=True)
             elif completed_param.lower() == "false":
                 todos = todos.filter(completed=False)
         
         if categories:
-            # Assuming categories is stored as a list in JSONField,
-            # and using PostgreSQL we can filter using __contains or __overlap.
             todos = todos.filter(categories__overlap=categories)
         
         result = []
@@ -85,10 +101,11 @@ class TodoListView(APIView):
         return Response(result, status=status.HTTP_200_OK)
 
 class TodoStartTimerView(APIView):
-    """
-    POST /todos/{id}/start
-    Starts the timer for a timer-type Todo.
-    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={200: StartTimerResponseSerializer, 400: "Bad Request"}
+    )
     def post(self, request, id):
         todo = get_object_or_404(Todo, id=id)
         if todo.type != Todo.TIMER:
@@ -107,10 +124,11 @@ class TodoStartTimerView(APIView):
         return Response(result, status=status.HTTP_200_OK)
 
 class TodoCompleteView(APIView):
-    """
-    POST /todos/{id}/complete
-    Marks a Todo as complete.
-    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={200: TodoCompleteResponseSerializer, 400: "Bad Request"}
+    )
     def post(self, request, id):
         todo = get_object_or_404(Todo, id=id)
         if todo.completed:
@@ -119,8 +137,7 @@ class TodoCompleteView(APIView):
         
         todo.completed = True
         todo.completed_at = timezone.now()
-        # Here we set gained_exp; you can adjust the logic as needed.
-        todo.gained_exp = 10
+        todo.gained_exp = 10  # Adjust your experience calculation logic as needed.
         todo.save()
         result = {
             "message": "Todo completed",
@@ -130,31 +147,29 @@ class TodoCompleteView(APIView):
         return Response(result, status=status.HTTP_200_OK)
 
 class TodoSuggestionsView(APIView):
-    """
-    GET /todos/suggestions
-    Returns customized Todo suggestions.
-    For demonstration purposes, this example returns static suggestions.
-    In a real application, you might generate these based on user data.
-    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={200: TodoSuggestionSerializer(many=True)}
+    )
     def get(self, request):
-        suggestions = [
-            {
-                "id": 201,
-                "title": "Clean room",
-                "categories": ["cleaning", "home"],
-                "reason": "Based on your preference for organized tasks."
-            },
-            {
-                "id": 202,
-                "title": "Grocery shopping",
-                "categories": ["shopping", "home"],
-                "reason": "To restock your kitchen supplies."
-            },
-            {
-                "id": 203,
-                "title": "Evening walk",
-                "categories": ["health", "wellbeing"],
-                "reason": "Helps to relax and improve health."
-            }
-        ]
-        return Response(suggestions, status=status.HTTP_200_OK)
+        user_todos = Todo.objects.filter(user=request.user).order_by('-created_at')[:10]
+        if user_todos.exists():
+            todo_list_str = "\n".join([f"- {todo.title}" for todo in user_todos])
+        else:
+            # Fallback default TODO list
+            todo_list_str = (
+                "- 아침 루틴 정립하기 (기상 시간, 스트레칭, 물 마시기 등)\n"
+                "- 주간 회의 안건 정리 및 공유\n"
+                "- 'Effective Python' 1~3장 읽고 요약 정리하기\n"
+                "- 냉장고 정리 및 유통기한 지난 식재료 폐기\n"
+                "- 30분간 걷기 운동 후 심박수 기록하기\n"
+                "- 후쿠오카 여행 일정 Google Calendar에 정리하기\n"
+                "- 3월 생활비 지출 내역 가계부에 입력하기\n"
+                "- Django 서버에 OAuth 로그인 기능 통합 테스트\n"
+                "- ChatGPT를 활용한 단편 시나리오 1편 초안 작성\n"
+                "- 책상 위 케이블 정리하고 선정리함 설치"
+            )
+        # Call the recommendation service to generate suggestions based on the TODO list.
+        recommendations = get_todo_recommendations(todo_list_str)
+        return Response(recommendations, status=status.HTTP_200_OK)
