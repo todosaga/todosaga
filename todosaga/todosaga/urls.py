@@ -15,6 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from django.contrib.auth.views import LoginView
 from django.urls import path, include, re_path
 from rest_framework import permissions
 from django.conf import settings
@@ -35,6 +36,8 @@ schema_view = get_schema_view(
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('accounts/login/', LoginView.as_view(template_name='admin/login.html'), name='login'),
+    path('accounts/', include('django.contrib.auth.urls')),
     path('todos/', include('todos.urls')),
 ]
 
